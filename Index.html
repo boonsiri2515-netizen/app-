@@ -207,7 +207,7 @@
         renderAlerts();
         renderSummary('summaryLogs', takeLatest(appData.User_Logs, 'Log_Date'), (item) => `${item.Log_Date || '-'} · ${item.Symptom || item.Category || '-'}`);
         renderSummary('summaryMetrics', takeLatest(appData.Health_Metrics, 'Metric_Date'), (item) => `${item.Metric_Date || '-'} · น้ำตาล ${item.Blood_Sugar || '-'} · ความดัน ${item.Blood_Pressure || '-'}`);
-        renderSummary('summaryAppointments', takeLatest(appData.Appointments, 'Appointment_Date'), (item) => `${item.Appointment_Date || '-'} ${item.Appointment_Time || ''} · ${item.Purpose || '-'}`);
+        renderSummary('summaryAppointments', takeLatest(appData.Appointments, 'Appointment_Date'), (item) => `${item.Appointment_Date || '-'} ${formatTime24(item.Appointment_Time)} · ${item.Purpose || '-'}`);
       }
 
       function renderAlerts() {
@@ -222,7 +222,7 @@
           <article class="rounded-lg border ${item.Should_Prepare ? 'border-amber-300 bg-amber-50' : 'border-teal-200 bg-white'} p-4 shadow-sm">
             <div class="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
               <h2 class="font-bold text-slate-900">${escapeHtml(item.Purpose || 'นัดหมาย')}</h2>
-              <span class="text-sm font-semibold text-teal-800">${escapeHtml(item.Appointment_Date || '-')} ${escapeHtml(item.Appointment_Time || '')}</span>
+              <span class="text-sm font-semibold text-teal-800">${escapeHtml(item.Appointment_Date || '-')} ${escapeHtml(formatTime24(item.Appointment_Time))}</span>
             </div>
             <p class="mt-1 text-sm text-slate-600">${escapeHtml(item.Doctor_Name || '-')} · ${escapeHtml(item.Hospital || '-')}</p>
             <div class="mt-3">
@@ -277,7 +277,8 @@
           return `<label class="block sm:col-span-2"><span class="field-label">${label}</span><textarea name="${header}" class="field-input min-h-24">${escapeHtml(value)}</textarea></label>`;
         }
 
-        return `<label class="block"><span class="field-label">${label}</span><input name="${header}" value="${escapeHtml(value)}" type="${type}" class="field-input"></label>`;
+        const timeAttrs = type === 'time' ? ' step="60" inputmode="numeric"' : '';
+        return `<label class="block"><span class="field-label">${label}</span><input name="${header}" value="${escapeHtml(value)}" type="${type}"${timeAttrs} class="field-input"></label>`;
       }
 
       function submitRecord(event) {
@@ -330,7 +331,7 @@
             <tbody>
               ${rows.map((row) => `
                 <tr class="bg-slate-50">
-                  ${headers.map((h) => `<td class="max-w-48 whitespace-nowrap px-2 py-2 align-top text-slate-700">${renderCell(row[h])}</td>`).join('')}
+                  ${headers.map((h) => `<td class="max-w-48 whitespace-nowrap px-2 py-2 align-top text-slate-700">${renderCell(row[h], h)}</td>`).join('')}
                   <td class="whitespace-nowrap px-2 py-2 align-top">
                     <button class="mr-2 rounded-md bg-slate-800 px-2 py-1 text-xs font-semibold text-white" onclick="editRecord('${sheetName}', '${row.ID}')">แก้ไข</button>
                     <button class="rounded-md bg-rose-600 px-2 py-1 text-xs font-semibold text-white" onclick="deleteRecord('${sheetName}', '${row.ID}')">ลบ</button>
@@ -342,11 +343,46 @@
         `;
       }
 
-      function renderCell(value) {
+      function renderCell(value, header = '') {
+        if (header.includes('Time')) {
+          return escapeHtml(formatTime24(value));
+        }
+
         const text = escapeHtml(value || '');
         if (String(value || '').startsWith('http')) {
           return `<a class="font-semibold text-teal-700 underline" href="${text}" target="_blank" rel="noopener">เปิดไฟล์</a>`;
         }
+        return text;
+      }
+
+      function formatTime24(value) {
+        if (!value) return '';
+        const text = String(value).trim();
+        const amPmMatch = text.match(/^(\d{1,2}):(\d{2})(?::\d{2})?\s*(AM|PM)$/i);
+        if (amPmMatch) {
+          let hour = Number(amPmMatch[1]);
+          const minute = amPmMatch[2];
+          const period = amPmMatch[3].toUpperCase();
+          if (period === 'PM' && hour < 12) hour += 12;
+          if (period === 'AM' && hour === 12) hour = 0;
+          return `${String(hour).padStart(2, '0')}:${minute}`;
+        }
+
+        const timeMatch = text.match(/^(\d{1,2}):(\d{2})(?::\d{2})?$/);
+        if (timeMatch) {
+          const hour = Math.min(Number(timeMatch[1]), 23);
+          return `${String(hour).padStart(2, '0')}:${timeMatch[2]}`;
+        }
+
+        const date = new Date(text);
+        if (!Number.isNaN(date.getTime())) {
+          return date.toLocaleTimeString('th-TH', {
+            hour: '2-digit',
+            minute: '2-digit',
+            hour12: false,
+          });
+        }
+
         return text;
       }
 

@@ -245,16 +245,45 @@ function findRowById_(sheetName, id) {
 
 function rowToObject_(headers, row) {
   return headers.reduce((record, header, index) => {
-    record[header] = normalizeCell_(row[index]);
+    record[header] = normalizeCell_(row[index], header);
     return record;
   }, {});
 }
 
-function normalizeCell_(value) {
+function normalizeCell_(value, header) {
   if (value instanceof Date) {
+    if (header && header.indexOf('Time') !== -1) {
+      return Utilities.formatDate(value, Session.getScriptTimeZone(), 'HH:mm');
+    }
     return Utilities.formatDate(value, Session.getScriptTimeZone(), 'yyyy-MM-dd');
   }
+  if (header && header.indexOf('Time') !== -1) {
+    return formatTime24_(value);
+  }
   return value;
+}
+
+function formatTime24_(value) {
+  if (!value) return '';
+
+  const text = String(value).trim();
+  const amPmMatch = text.match(/^(\d{1,2}):(\d{2})(?::\d{2})?\s*(AM|PM)$/i);
+  if (amPmMatch) {
+    let hour = Number(amPmMatch[1]);
+    const minute = amPmMatch[2];
+    const period = amPmMatch[3].toUpperCase();
+    if (period === 'PM' && hour < 12) hour += 12;
+    if (period === 'AM' && hour === 12) hour = 0;
+    return String(hour).padStart(2, '0') + ':' + minute;
+  }
+
+  const timeMatch = text.match(/^(\d{1,2}):(\d{2})(?::\d{2})?$/);
+  if (timeMatch) {
+    const hour = Math.min(Number(timeMatch[1]), 23);
+    return String(hour).padStart(2, '0') + ':' + timeMatch[2];
+  }
+
+  return text;
 }
 
 function valueOrBlank_(value) {
