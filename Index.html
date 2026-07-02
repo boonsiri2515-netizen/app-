@@ -1,0 +1,364 @@
+<!DOCTYPE html>
+<html lang="th">
+  <head>
+    <base target="_top">
+    <meta charset="UTF-8">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+      body { font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+      .tab-button[aria-selected="true"] { background: #0f766e; color: #ffffff; }
+      .tab-panel { display: none; }
+      .tab-panel.active { display: block; }
+      .field-label { display: block; font-size: 0.8rem; font-weight: 650; color: #334155; margin-bottom: 0.3rem; }
+      .field-input { width: 100%; border: 1px solid #cbd5e1; border-radius: 0.5rem; padding: 0.65rem 0.75rem; outline: none; background: #ffffff; }
+      .field-input:focus { border-color: #0f766e; box-shadow: 0 0 0 3px rgba(15, 118, 110, 0.15); }
+    </style>
+  </head>
+  <body class="min-h-screen bg-slate-50 text-slate-900">
+    <header class="sticky top-0 z-20 border-b border-slate-200 bg-white/95 backdrop-blur">
+      <div class="mx-auto max-w-5xl px-4 py-3">
+        <div class="flex items-center justify-between gap-3">
+          <div>
+            <h1 class="text-lg font-bold text-teal-800">Health Web App</h1>
+            <p class="text-xs text-slate-500">บันทึกสุขภาพ นัดหมาย และข้อมูลแพทย์</p>
+          </div>
+          <button onclick="refreshData()" class="rounded-lg bg-teal-700 px-3 py-2 text-sm font-semibold text-white shadow-sm">รีเฟรช</button>
+        </div>
+        <nav class="mt-3 grid grid-cols-4 gap-2 text-sm">
+          <button class="tab-button rounded-lg px-2 py-2 font-semibold" aria-selected="true" onclick="showTab('dashboard', this)">หน้าแรก</button>
+          <button class="tab-button rounded-lg px-2 py-2 font-semibold" onclick="showTab('form', this)">บันทึก</button>
+          <button class="tab-button rounded-lg px-2 py-2 font-semibold" onclick="showTab('records', this)">ข้อมูล</button>
+          <button class="tab-button rounded-lg px-2 py-2 font-semibold" onclick="showTab('timeline', this)">Timeline</button>
+        </nav>
+      </div>
+    </header>
+
+    <main class="mx-auto max-w-5xl px-4 py-5">
+      <section id="dashboard" class="tab-panel active space-y-5">
+        <div id="statusBox" class="rounded-lg border border-teal-100 bg-teal-50 p-3 text-sm text-teal-900">กำลังโหลดข้อมูล...</div>
+        <div id="appointmentAlerts" class="space-y-3"></div>
+        <div class="grid gap-4 md:grid-cols-3">
+          <div class="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+            <h2 class="font-bold text-slate-800">Logs ล่าสุด</h2>
+            <div id="summaryLogs" class="mt-3 space-y-2 text-sm"></div>
+          </div>
+          <div class="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+            <h2 class="font-bold text-slate-800">Metrics ล่าสุด</h2>
+            <div id="summaryMetrics" class="mt-3 space-y-2 text-sm"></div>
+          </div>
+          <div class="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+            <h2 class="font-bold text-slate-800">Appointments ล่าสุด</h2>
+            <div id="summaryAppointments" class="mt-3 space-y-2 text-sm"></div>
+          </div>
+        </div>
+      </section>
+
+      <section id="form" class="tab-panel">
+        <div class="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+          <div class="mb-4 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+            <div>
+              <h2 class="text-base font-bold text-slate-800">บันทึก / แก้ไขข้อมูล</h2>
+              <p class="text-sm text-slate-500">เลือกประเภท แล้วกรอกข้อมูลที่ต้องการจัดเก็บ</p>
+            </div>
+            <label class="block">
+              <span class="field-label">ประเภทข้อมูล</span>
+              <select id="sheetSelect" class="field-input" onchange="renderDynamicForm()"></select>
+            </label>
+          </div>
+          <form id="recordForm" class="grid gap-3 sm:grid-cols-2" onsubmit="submitRecord(event)"></form>
+          <div class="mt-4 flex flex-wrap gap-2">
+            <button onclick="submitRecord(event)" class="rounded-lg bg-teal-700 px-4 py-2 text-sm font-semibold text-white">บันทึกข้อมูล</button>
+            <button onclick="resetForm()" class="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700">ล้างฟอร์ม</button>
+          </div>
+        </div>
+      </section>
+
+      <section id="records" class="tab-panel space-y-4">
+        <div class="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+          <div class="mb-3 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+            <h2 class="text-base font-bold text-slate-800">ข้อมูลทั้งหมด</h2>
+            <label class="block">
+              <span class="field-label">เลือกตาราง</span>
+              <select id="recordsSheetSelect" class="field-input" onchange="renderRecordsTable()"></select>
+            </label>
+          </div>
+          <div id="recordsTable" class="overflow-x-auto"></div>
+        </div>
+      </section>
+
+      <section id="timeline" class="tab-panel">
+        <div class="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+          <h2 class="text-base font-bold text-slate-800">Symptom Timeline</h2>
+          <p class="mb-4 text-sm text-slate-500">เรียงจากอาการล่าสุด เพื่อใช้คุยกับแพทย์</p>
+          <div id="symptomTimeline" class="space-y-3"></div>
+        </div>
+      </section>
+    </main>
+
+    <script>
+      const sheetLabels = {
+        User_Logs: 'บันทึกอาการ',
+        Health_Metrics: 'ค่าสุขภาพ',
+        Doctor_Consultations: 'พบแพทย์ / ผลตรวจ',
+        Appointments: 'นัดหมาย',
+      };
+
+      const fieldLabels = {
+        Log_Date: 'วันที่บันทึก',
+        Category: 'ประเภท',
+        Symptom: 'อาการ / ผลข้างเคียง',
+        Severity: 'ระดับความรุนแรง',
+        Notes: 'รายละเอียด',
+        Metric_Date: 'วันที่วัดค่า',
+        Weight: 'น้ำหนัก',
+        Blood_Sugar: 'น้ำตาลในเลือด',
+        Blood_Pressure: 'ความดัน',
+        Heart_Rate: 'ชีพจร',
+        Visit_Date: 'วันที่พบแพทย์',
+        Doctor_Name: 'แพทย์',
+        Hospital: 'โรงพยาบาล',
+        Diagnosis: 'ผลวินิจฉัย',
+        Medication: 'ยา',
+        Lab_Result_URL: 'URL รูปผลแล็บ Google Drive',
+        Appointment_Date: 'วันที่นัด',
+        Appointment_Time: 'เวลา',
+        Purpose: 'จุดประสงค์',
+        Status: 'สถานะ',
+        Preparation_Notes: 'สิ่งที่ต้องเตรียม',
+        Prep_Start_Date: 'เริ่มเตรียมตัว',
+        Prep_End_Date: 'สิ้นสุดช่วงเตรียมตัว',
+      };
+
+      const hiddenFields = ['ID', 'Created_At', 'Updated_At'];
+      let appData = { schemas: {}, allData: {}, summaries: {}, activeAppointments: [], symptomTimeline: [] };
+      let editing = null;
+
+      document.addEventListener('DOMContentLoaded', refreshData);
+
+      function refreshData() {
+        setStatus('กำลังโหลดข้อมูล...');
+        google.script.run
+          .withSuccessHandler((data) => {
+            appData = data;
+            setupSelectors();
+            renderDynamicForm();
+            renderDashboard();
+            renderRecordsTable();
+            renderTimeline();
+            setStatus('พร้อมใช้งาน ฐานข้อมูล: ' + data.databaseUrl);
+          })
+          .withFailureHandler(showError)
+          .getDashboardData();
+      }
+
+      function setupSelectors() {
+        ['sheetSelect', 'recordsSheetSelect'].forEach((id) => {
+          const select = document.getElementById(id);
+          const current = select.value;
+          select.innerHTML = Object.keys(appData.schemas)
+            .map((sheet) => `<option value="${sheet}">${sheetLabels[sheet] || sheet}</option>`)
+            .join('');
+          if (current) select.value = current;
+        });
+      }
+
+      function showTab(tabId, button) {
+        document.querySelectorAll('.tab-panel').forEach((panel) => panel.classList.remove('active'));
+        document.getElementById(tabId).classList.add('active');
+        document.querySelectorAll('.tab-button').forEach((tab) => tab.setAttribute('aria-selected', 'false'));
+        button.setAttribute('aria-selected', 'true');
+      }
+
+      function renderDashboard() {
+        renderAlerts();
+        renderSummary('summaryLogs', appData.summaries.User_Logs, (item) => `${item.Log_Date || '-'} · ${item.Symptom || item.Category || '-'}`);
+        renderSummary('summaryMetrics', appData.summaries.Health_Metrics, (item) => `${item.Metric_Date || '-'} · น้ำตาล ${item.Blood_Sugar || '-'} · ความดัน ${item.Blood_Pressure || '-'}`);
+        renderSummary('summaryAppointments', appData.summaries.Appointments, (item) => `${item.Appointment_Date || '-'} ${item.Appointment_Time || ''} · ${item.Purpose || '-'}`);
+      }
+
+      function renderAlerts() {
+        const box = document.getElementById('appointmentAlerts');
+        const active = appData.activeAppointments || [];
+        if (!active.length) {
+          box.innerHTML = '';
+          return;
+        }
+
+        box.innerHTML = active.map((item) => `
+          <article class="rounded-lg border ${item.Should_Prepare ? 'border-amber-300 bg-amber-50' : 'border-teal-200 bg-white'} p-4 shadow-sm">
+            <div class="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+              <h2 class="font-bold text-slate-900">${escapeHtml(item.Purpose || 'นัดหมาย')}</h2>
+              <span class="text-sm font-semibold text-teal-800">${escapeHtml(item.Appointment_Date || '-')} ${escapeHtml(item.Appointment_Time || '')}</span>
+            </div>
+            <p class="mt-1 text-sm text-slate-600">${escapeHtml(item.Doctor_Name || '-')} · ${escapeHtml(item.Hospital || '-')}</p>
+            <div class="mt-3">
+              <p class="text-sm font-semibold text-slate-800">${item.Should_Prepare ? 'ถึงช่วงเตรียมตัวแล้ว' : 'รายการเตรียมตัว'}</p>
+              <ul class="mt-2 list-disc space-y-1 pl-5 text-sm text-slate-700">
+                ${(item.Preparation_List || []).map((prep) => `<li>${escapeHtml(prep)}</li>`).join('')}
+              </ul>
+            </div>
+          </article>
+        `).join('');
+      }
+
+      function renderSummary(targetId, records, format) {
+        const target = document.getElementById(targetId);
+        if (!records || !records.length) {
+          target.innerHTML = '<p class="text-slate-400">ยังไม่มีข้อมูล</p>';
+          return;
+        }
+        target.innerHTML = records
+          .map((item) => `<div class="rounded-md bg-slate-50 p-2">${escapeHtml(format(item))}</div>`)
+          .join('');
+      }
+
+      function renderDynamicForm(record = null) {
+        const sheetName = document.getElementById('sheetSelect').value || Object.keys(appData.schemas)[0];
+        const headers = appData.schemas[sheetName] || [];
+        const form = document.getElementById('recordForm');
+        const source = record || {};
+
+        form.innerHTML = headers
+          .filter((header) => !hiddenFields.includes(header))
+          .map((header) => renderField(header, source[header]))
+          .join('');
+      }
+
+      function renderField(header, value = '') {
+        const label = fieldLabels[header] || header;
+        const type = header.includes('Date') ? 'date' : header.includes('Time') ? 'time' : 'text';
+        const isTextarea = ['Notes', 'Symptom', 'Diagnosis', 'Medication', 'Preparation_Notes'].includes(header);
+        const options = header === 'Status'
+          ? '<option value="Active">Active</option><option value="Completed">Completed</option><option value="Cancelled">Cancelled</option>'
+          : '';
+
+        if (header === 'Status') {
+          return `<label class="block"><span class="field-label">${label}</span><select name="${header}" class="field-input">${options}</select></label>`
+            .replace(`value="${escapeHtml(value)}"`, `value="${escapeHtml(value)}" selected`);
+        }
+
+        if (isTextarea) {
+          return `<label class="block sm:col-span-2"><span class="field-label">${label}</span><textarea name="${header}" class="field-input min-h-24">${escapeHtml(value)}</textarea></label>`;
+        }
+
+        return `<label class="block"><span class="field-label">${label}</span><input name="${header}" value="${escapeHtml(value)}" type="${type}" class="field-input"></label>`;
+      }
+
+      function submitRecord(event) {
+        if (event) event.preventDefault();
+        const sheetName = document.getElementById('sheetSelect').value;
+        const payload = Object.fromEntries(new FormData(document.getElementById('recordForm')).entries());
+        const runner = google.script.run.withSuccessHandler(() => {
+          resetForm();
+          refreshData();
+          setStatus('บันทึกสำเร็จ');
+        }).withFailureHandler(showError);
+
+        if (editing) {
+          runner.updateRecord(sheetName, editing.ID, payload);
+        } else {
+          runner.createRecord(sheetName, payload);
+        }
+      }
+
+      function resetForm() {
+        editing = null;
+        renderDynamicForm();
+      }
+
+      function renderRecordsTable() {
+        const sheetName = document.getElementById('recordsSheetSelect').value || Object.keys(appData.schemas)[0];
+        const headers = appData.schemas[sheetName] || [];
+        const rows = appData.allData[sheetName] || [];
+        const target = document.getElementById('recordsTable');
+
+        if (!rows.length) {
+          target.innerHTML = '<p class="py-4 text-sm text-slate-400">ยังไม่มีข้อมูลในตารางนี้</p>';
+          return;
+        }
+
+        target.innerHTML = `
+          <table class="min-w-full border-separate border-spacing-y-2 text-left text-sm">
+            <thead>
+              <tr>${headers.map((h) => `<th class="whitespace-nowrap px-2 py-1 text-xs text-slate-500">${escapeHtml(fieldLabels[h] || h)}</th>`).join('')}<th class="px-2 py-1"></th></tr>
+            </thead>
+            <tbody>
+              ${rows.map((row) => `
+                <tr class="bg-slate-50">
+                  ${headers.map((h) => `<td class="max-w-48 whitespace-nowrap px-2 py-2 align-top text-slate-700">${renderCell(row[h])}</td>`).join('')}
+                  <td class="whitespace-nowrap px-2 py-2 align-top">
+                    <button class="mr-2 rounded-md bg-slate-800 px-2 py-1 text-xs font-semibold text-white" onclick="editRecord('${sheetName}', '${row.ID}')">แก้ไข</button>
+                    <button class="rounded-md bg-rose-600 px-2 py-1 text-xs font-semibold text-white" onclick="deleteRecord('${sheetName}', '${row.ID}')">ลบ</button>
+                  </td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+        `;
+      }
+
+      function renderCell(value) {
+        const text = escapeHtml(value || '');
+        if (String(value || '').startsWith('http')) {
+          return `<a class="font-semibold text-teal-700 underline" href="${text}" target="_blank">เปิดไฟล์</a>`;
+        }
+        return text;
+      }
+
+      function editRecord(sheetName, id) {
+        const record = (appData.allData[sheetName] || []).find((item) => String(item.ID) === String(id));
+        if (!record) return;
+
+        editing = record;
+        document.getElementById('sheetSelect').value = sheetName;
+        renderDynamicForm(record);
+        showTab('form', document.querySelectorAll('.tab-button')[1]);
+      }
+
+      function deleteRecord(sheetName, id) {
+        if (!confirm('ลบรายการนี้ใช่ไหม?')) return;
+        google.script.run
+          .withSuccessHandler(refreshData)
+          .withFailureHandler(showError)
+          .deleteRecord(sheetName, id);
+      }
+
+      function renderTimeline() {
+        const target = document.getElementById('symptomTimeline');
+        const rows = (appData.symptomTimeline || []).filter((item) => item.Symptom || item.Notes);
+        if (!rows.length) {
+          target.innerHTML = '<p class="text-sm text-slate-400">ยังไม่มีบันทึกอาการ</p>';
+          return;
+        }
+
+        target.innerHTML = rows.map((item) => `
+          <article class="border-l-4 border-teal-600 bg-slate-50 p-3">
+            <div class="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+              <h3 class="font-semibold text-slate-900">${escapeHtml(item.Symptom || item.Category || 'อาการ')}</h3>
+              <span class="text-xs font-semibold text-slate-500">${escapeHtml(item.Log_Date || '-')}</span>
+            </div>
+            <p class="mt-1 text-sm text-slate-600">ระดับ: ${escapeHtml(item.Severity || '-')}</p>
+            <p class="mt-2 text-sm text-slate-700">${escapeHtml(item.Notes || '')}</p>
+          </article>
+        `).join('');
+      }
+
+      function setStatus(message) {
+        document.getElementById('statusBox').textContent = message;
+      }
+
+      function showError(error) {
+        setStatus('เกิดข้อผิดพลาด: ' + (error.message || error));
+      }
+
+      function escapeHtml(value) {
+        return String(value ?? '')
+          .replaceAll('&', '&amp;')
+          .replaceAll('<', '&lt;')
+          .replaceAll('>', '&gt;')
+          .replaceAll('"', '&quot;')
+          .replaceAll("'", '&#039;');
+      }
+    </script>
+  </body>
+</html>
