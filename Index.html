@@ -1,8 +1,9 @@
 <!DOCTYPE html>
 <html lang="th">
   <head>
-    <base target="_top">
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Health Web App</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
       body { font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
@@ -22,7 +23,11 @@
             <h1 class="text-lg font-bold text-teal-800">Health Web App</h1>
             <p class="text-xs text-slate-500">บันทึกสุขภาพ นัดหมาย และข้อมูลแพทย์</p>
           </div>
-          <button onclick="refreshData()" class="rounded-lg bg-teal-700 px-3 py-2 text-sm font-semibold text-white shadow-sm">รีเฟรช</button>
+          <div class="flex gap-2">
+            <button onclick="exportData()" class="rounded-lg border border-teal-700 px-3 py-2 text-sm font-semibold text-teal-800">Export</button>
+            <button onclick="document.getElementById('importFile').click()" class="rounded-lg bg-teal-700 px-3 py-2 text-sm font-semibold text-white">Import</button>
+            <input id="importFile" type="file" accept="application/json" class="hidden" onchange="importData(event)">
+          </div>
         </div>
         <nav class="mt-3 grid grid-cols-4 gap-2 text-sm">
           <button class="tab-button rounded-lg px-2 py-2 font-semibold" aria-selected="true" onclick="showTab('dashboard', this)">หน้าแรก</button>
@@ -35,7 +40,7 @@
 
     <main class="mx-auto max-w-5xl px-4 py-5">
       <section id="dashboard" class="tab-panel active space-y-5">
-        <div id="statusBox" class="rounded-lg border border-teal-100 bg-teal-50 p-3 text-sm text-teal-900">กำลังโหลดข้อมูล...</div>
+        <div id="statusBox" class="rounded-lg border border-teal-100 bg-teal-50 p-3 text-sm text-teal-900"></div>
         <div id="appointmentAlerts" class="space-y-3"></div>
         <div class="grid gap-4 md:grid-cols-3">
           <div class="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
@@ -58,17 +63,17 @@
           <div class="mb-4 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
             <div>
               <h2 class="text-base font-bold text-slate-800">บันทึก / แก้ไขข้อมูล</h2>
-              <p class="text-sm text-slate-500">เลือกประเภท แล้วกรอกข้อมูลที่ต้องการจัดเก็บ</p>
+              <p class="text-sm text-slate-500">ข้อมูลจะถูกเก็บไว้ในเบราว์เซอร์ของเครื่องนี้</p>
             </div>
             <label class="block">
               <span class="field-label">ประเภทข้อมูล</span>
-              <select id="sheetSelect" class="field-input" onchange="renderDynamicForm()"></select>
+              <select id="sheetSelect" class="field-input" onchange="resetForm()"></select>
             </label>
           </div>
           <form id="recordForm" class="grid gap-3 sm:grid-cols-2" onsubmit="submitRecord(event)"></form>
           <div class="mt-4 flex flex-wrap gap-2">
-            <button onclick="submitRecord(event)" class="rounded-lg bg-teal-700 px-4 py-2 text-sm font-semibold text-white">บันทึกข้อมูล</button>
-            <button onclick="resetForm()" class="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700">ล้างฟอร์ม</button>
+            <button type="submit" form="recordForm" class="rounded-lg bg-teal-700 px-4 py-2 text-sm font-semibold text-white">บันทึกข้อมูล</button>
+            <button type="button" onclick="resetForm()" class="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700">ล้างฟอร์ม</button>
           </div>
         </div>
       </section>
@@ -96,6 +101,16 @@
     </main>
 
     <script>
+      const STORAGE_KEY = 'health-web-app-v1';
+      const SUMMARY_LIMIT = 5;
+
+      const schemas = {
+        User_Logs: ['ID', 'Log_Date', 'Category', 'Symptom', 'Severity', 'Notes', 'Created_At', 'Updated_At'],
+        Health_Metrics: ['ID', 'Metric_Date', 'Weight', 'Blood_Sugar', 'Blood_Pressure', 'Heart_Rate', 'Notes', 'Created_At', 'Updated_At'],
+        Doctor_Consultations: ['ID', 'Visit_Date', 'Doctor_Name', 'Hospital', 'Diagnosis', 'Medication', 'Lab_Result_URL', 'Notes', 'Created_At', 'Updated_At'],
+        Appointments: ['ID', 'Appointment_Date', 'Appointment_Time', 'Doctor_Name', 'Hospital', 'Purpose', 'Status', 'Preparation_Notes', 'Prep_Start_Date', 'Prep_End_Date', 'Created_At', 'Updated_At'],
+      };
+
       const sheetLabels = {
         User_Logs: 'บันทึกอาการ',
         Health_Metrics: 'ค่าสุขภาพ',
@@ -130,36 +145,55 @@
       };
 
       const hiddenFields = ['ID', 'Created_At', 'Updated_At'];
-      let appData = { schemas: {}, allData: {}, summaries: {}, activeAppointments: [], symptomTimeline: [] };
       let editing = null;
+      let appData = createEmptyData();
 
-      document.addEventListener('DOMContentLoaded', refreshData);
+      document.addEventListener('DOMContentLoaded', () => {
+        appData = loadData();
+        setupSelectors();
+        renderAll();
+      });
 
-      function refreshData() {
-        setStatus('กำลังโหลดข้อมูล...');
-        google.script.run
-          .withSuccessHandler((data) => {
-            appData = data;
-            setupSelectors();
-            renderDynamicForm();
-            renderDashboard();
-            renderRecordsTable();
-            renderTimeline();
-            setStatus('พร้อมใช้งาน ฐานข้อมูล: ' + data.databaseUrl);
-          })
-          .withFailureHandler(showError)
-          .getDashboardData();
+      function createEmptyData() {
+        return Object.keys(schemas).reduce((data, sheetName) => {
+          data[sheetName] = [];
+          return data;
+        }, {});
+      }
+
+      function loadData() {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        if (!raw) return createEmptyData();
+
+        try {
+          return Object.assign(createEmptyData(), JSON.parse(raw));
+        } catch (error) {
+          setStatus('อ่านข้อมูลเดิมไม่ได้ กรุณา import backup ใหม่');
+          return createEmptyData();
+        }
+      }
+
+      function saveData() {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(appData));
       }
 
       function setupSelectors() {
         ['sheetSelect', 'recordsSheetSelect'].forEach((id) => {
           const select = document.getElementById(id);
           const current = select.value;
-          select.innerHTML = Object.keys(appData.schemas)
-            .map((sheet) => `<option value="${sheet}">${sheetLabels[sheet] || sheet}</option>`)
+          select.innerHTML = Object.keys(schemas)
+            .map((sheet) => `<option value="${sheet}">${sheetLabels[sheet]}</option>`)
             .join('');
           if (current) select.value = current;
         });
+      }
+
+      function renderAll() {
+        renderDynamicForm();
+        renderDashboard();
+        renderRecordsTable();
+        renderTimeline();
+        setStatus('พร้อมใช้งานบน GitHub Pages ข้อมูลถูกเก็บในเบราว์เซอร์นี้');
       }
 
       function showTab(tabId, button) {
@@ -171,14 +205,14 @@
 
       function renderDashboard() {
         renderAlerts();
-        renderSummary('summaryLogs', appData.summaries.User_Logs, (item) => `${item.Log_Date || '-'} · ${item.Symptom || item.Category || '-'}`);
-        renderSummary('summaryMetrics', appData.summaries.Health_Metrics, (item) => `${item.Metric_Date || '-'} · น้ำตาล ${item.Blood_Sugar || '-'} · ความดัน ${item.Blood_Pressure || '-'}`);
-        renderSummary('summaryAppointments', appData.summaries.Appointments, (item) => `${item.Appointment_Date || '-'} ${item.Appointment_Time || ''} · ${item.Purpose || '-'}`);
+        renderSummary('summaryLogs', takeLatest(appData.User_Logs, 'Log_Date'), (item) => `${item.Log_Date || '-'} · ${item.Symptom || item.Category || '-'}`);
+        renderSummary('summaryMetrics', takeLatest(appData.Health_Metrics, 'Metric_Date'), (item) => `${item.Metric_Date || '-'} · น้ำตาล ${item.Blood_Sugar || '-'} · ความดัน ${item.Blood_Pressure || '-'}`);
+        renderSummary('summaryAppointments', takeLatest(appData.Appointments, 'Appointment_Date'), (item) => `${item.Appointment_Date || '-'} ${item.Appointment_Time || ''} · ${item.Purpose || '-'}`);
       }
 
       function renderAlerts() {
         const box = document.getElementById('appointmentAlerts');
-        const active = appData.activeAppointments || [];
+        const active = getActiveAppointmentAlerts();
         if (!active.length) {
           box.innerHTML = '';
           return;
@@ -203,7 +237,7 @@
 
       function renderSummary(targetId, records, format) {
         const target = document.getElementById(targetId);
-        if (!records || !records.length) {
+        if (!records.length) {
           target.innerHTML = '<p class="text-slate-400">ยังไม่มีข้อมูล</p>';
           return;
         }
@@ -213,12 +247,11 @@
       }
 
       function renderDynamicForm(record = null) {
-        const sheetName = document.getElementById('sheetSelect').value || Object.keys(appData.schemas)[0];
-        const headers = appData.schemas[sheetName] || [];
+        const sheetName = document.getElementById('sheetSelect').value || Object.keys(schemas)[0];
         const form = document.getElementById('recordForm');
         const source = record || {};
 
-        form.innerHTML = headers
+        form.innerHTML = schemas[sheetName]
           .filter((header) => !hiddenFields.includes(header))
           .map((header) => renderField(header, source[header]))
           .join('');
@@ -228,13 +261,16 @@
         const label = fieldLabels[header] || header;
         const type = header.includes('Date') ? 'date' : header.includes('Time') ? 'time' : 'text';
         const isTextarea = ['Notes', 'Symptom', 'Diagnosis', 'Medication', 'Preparation_Notes'].includes(header);
-        const options = header === 'Status'
-          ? '<option value="Active">Active</option><option value="Completed">Completed</option><option value="Cancelled">Cancelled</option>'
-          : '';
 
         if (header === 'Status') {
-          return `<label class="block"><span class="field-label">${label}</span><select name="${header}" class="field-input">${options}</select></label>`
-            .replace(`value="${escapeHtml(value)}"`, `value="${escapeHtml(value)}" selected`);
+          return `
+            <label class="block">
+              <span class="field-label">${label}</span>
+              <select name="${header}" class="field-input">
+                ${['Active', 'Completed', 'Cancelled'].map((status) => `<option value="${status}" ${status === value ? 'selected' : ''}>${status}</option>`).join('')}
+              </select>
+            </label>
+          `;
         }
 
         if (isTextarea) {
@@ -245,20 +281,29 @@
       }
 
       function submitRecord(event) {
-        if (event) event.preventDefault();
+        event.preventDefault();
         const sheetName = document.getElementById('sheetSelect').value;
         const payload = Object.fromEntries(new FormData(document.getElementById('recordForm')).entries());
-        const runner = google.script.run.withSuccessHandler(() => {
-          resetForm();
-          refreshData();
-          setStatus('บันทึกสำเร็จ');
-        }).withFailureHandler(showError);
+        const now = new Date().toISOString();
 
         if (editing) {
-          runner.updateRecord(sheetName, editing.ID, payload);
+          const rows = appData[sheetName];
+          const index = rows.findIndex((item) => item.ID === editing.ID);
+          if (index >= 0) {
+            rows[index] = Object.assign({}, rows[index], payload, { Updated_At: now });
+          }
         } else {
-          runner.createRecord(sheetName, payload);
+          appData[sheetName].push(Object.assign({}, payload, {
+            ID: createId(),
+            Created_At: now,
+            Updated_At: now,
+          }));
         }
+
+        saveData();
+        resetForm();
+        renderAll();
+        setStatus('บันทึกสำเร็จ');
       }
 
       function resetForm() {
@@ -267,9 +312,9 @@
       }
 
       function renderRecordsTable() {
-        const sheetName = document.getElementById('recordsSheetSelect').value || Object.keys(appData.schemas)[0];
-        const headers = appData.schemas[sheetName] || [];
-        const rows = appData.allData[sheetName] || [];
+        const sheetName = document.getElementById('recordsSheetSelect').value || Object.keys(schemas)[0];
+        const headers = schemas[sheetName];
+        const rows = appData[sheetName] || [];
         const target = document.getElementById('recordsTable');
 
         if (!rows.length) {
@@ -300,13 +345,13 @@
       function renderCell(value) {
         const text = escapeHtml(value || '');
         if (String(value || '').startsWith('http')) {
-          return `<a class="font-semibold text-teal-700 underline" href="${text}" target="_blank">เปิดไฟล์</a>`;
+          return `<a class="font-semibold text-teal-700 underline" href="${text}" target="_blank" rel="noopener">เปิดไฟล์</a>`;
         }
         return text;
       }
 
       function editRecord(sheetName, id) {
-        const record = (appData.allData[sheetName] || []).find((item) => String(item.ID) === String(id));
+        const record = (appData[sheetName] || []).find((item) => String(item.ID) === String(id));
         if (!record) return;
 
         editing = record;
@@ -317,15 +362,15 @@
 
       function deleteRecord(sheetName, id) {
         if (!confirm('ลบรายการนี้ใช่ไหม?')) return;
-        google.script.run
-          .withSuccessHandler(refreshData)
-          .withFailureHandler(showError)
-          .deleteRecord(sheetName, id);
+        appData[sheetName] = appData[sheetName].filter((item) => String(item.ID) !== String(id));
+        saveData();
+        renderAll();
+        setStatus('ลบข้อมูลแล้ว');
       }
 
       function renderTimeline() {
         const target = document.getElementById('symptomTimeline');
-        const rows = (appData.symptomTimeline || []).filter((item) => item.Symptom || item.Notes);
+        const rows = takeLatest(appData.User_Logs, 'Log_Date', 50).filter((item) => item.Symptom || item.Notes);
         if (!rows.length) {
           target.innerHTML = '<p class="text-sm text-slate-400">ยังไม่มีบันทึกอาการ</p>';
           return;
@@ -343,12 +388,99 @@
         `).join('');
       }
 
-      function setStatus(message) {
-        document.getElementById('statusBox').textContent = message;
+      function getActiveAppointmentAlerts() {
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+
+        return (appData.Appointments || [])
+          .filter((appointment) => String(appointment.Status || '').toLowerCase() === 'active')
+          .map((appointment) => {
+            const prepStart = parseDate(appointment.Prep_Start_Date);
+            const prepEnd = parseDate(appointment.Prep_End_Date);
+            const appointmentDate = parseDate(appointment.Appointment_Date);
+            const shouldPrepare = isWithinDateRange(today, prepStart, prepEnd) || isWithinUpcomingDays(today, appointmentDate, 7);
+
+            return Object.assign({}, appointment, {
+              Should_Prepare: shouldPrepare,
+              Preparation_List: splitPreparation(appointment.Preparation_Notes),
+            });
+          })
+          .sort((a, b) => new Date(a.Appointment_Date || 0) - new Date(b.Appointment_Date || 0));
       }
 
-      function showError(error) {
-        setStatus('เกิดข้อผิดพลาด: ' + (error.message || error));
+      function exportData() {
+        const blob = new Blob([JSON.stringify(appData, null, 2)], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `health-web-app-backup-${new Date().toISOString().slice(0, 10)}.json`;
+        link.click();
+        URL.revokeObjectURL(url);
+      }
+
+      function importData(event) {
+        const file = event.target.files[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = () => {
+          try {
+            const imported = JSON.parse(reader.result);
+            appData = Object.assign(createEmptyData(), imported);
+            saveData();
+            renderAll();
+            setStatus('Import ข้อมูลสำเร็จ');
+          } catch (error) {
+            setStatus('Import ไม่สำเร็จ ไฟล์ต้องเป็น JSON backup ของแอปนี้');
+          }
+        };
+        reader.readAsText(file);
+        event.target.value = '';
+      }
+
+      function takeLatest(records, dateField, limit = SUMMARY_LIMIT) {
+        return records
+          .slice()
+          .sort((a, b) => new Date(b[dateField] || b.Updated_At || 0) - new Date(a[dateField] || a.Updated_At || 0))
+          .slice(0, limit);
+      }
+
+      function createId() {
+        const stamp = new Date().toISOString().replace(/\D/g, '');
+        return `${stamp}-${Math.floor(Math.random() * 10000)}`;
+      }
+
+      function parseDate(value) {
+        if (!value) return null;
+        const date = new Date(value);
+        if (Number.isNaN(date.getTime())) return null;
+        date.setHours(0, 0, 0, 0);
+        return date;
+      }
+
+      function isWithinDateRange(today, start, end) {
+        if (!start || !end) return false;
+        return today >= start && today <= end;
+      }
+
+      function isWithinUpcomingDays(today, target, days) {
+        if (!target) return false;
+        const diffDays = Math.ceil((target.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+        return diffDays >= 0 && diffDays <= days;
+      }
+
+      function splitPreparation(notes) {
+        const fallback = ['เตรียมบัตรประชาชน/บัตรโรงพยาบาล', 'นำรายการยาเดิมไปด้วย'];
+        if (!notes) return fallback;
+
+        return String(notes)
+          .split(/\n|,|;/)
+          .map((item) => item.trim())
+          .filter(Boolean);
+      }
+
+      function setStatus(message) {
+        document.getElementById('statusBox').textContent = message;
       }
 
       function escapeHtml(value) {

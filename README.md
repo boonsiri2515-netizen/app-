@@ -1,27 +1,34 @@
-# Health Web App for Google Apps Script
+# Health Web App
 
-โปรเจกต์นี้เป็น Web App สำหรับบันทึกข้อมูลสุขภาพ โดยใช้ Google Apps Script เป็น backend และ Google Sheets เป็นฐานข้อมูล
+โปรเจกต์นี้เป็น Web App สำหรับบันทึกข้อมูลสุขภาพ เวอร์ชันหลักตอนนี้รันผ่าน GitHub Pages ได้โดยตรง
 
 ## ไฟล์หลัก
 
-- `Code.gs` backend, สร้าง Sheets, CRUD และ dashboard data
-- `Index.html` หน้าเว็บแบบ Single Page App พร้อม Tailwind CSS
-- `appsscript.json` manifest สำหรับ Apps Script
+- `index.html` หน้าเว็บแบบ Single Page App พร้อม Tailwind CSS สำหรับ GitHub Pages
+- `Code.gs` backend เวอร์ชันเดิมสำหรับ Google Apps Script
+- `appsscript.json` manifest เวอร์ชันเดิมสำหรับ Google Apps Script
 
-## วิธีใช้งาน
+## วิธีรันด้วย GitHub Pages
 
-1. เปิด Google Apps Script
-2. สร้างโปรเจกต์ใหม่
-3. เพิ่มไฟล์ `Code.gs`, `Index.html`, และ `appsscript.json` ตามไฟล์ในโฟลเดอร์นี้
-4. กด Run ฟังก์ชัน `setupDatabase` ครั้งแรก เพื่อสร้างฐานข้อมูล Google Sheets
-5. Deploy เป็น Web app
-6. เปิด URL ที่ได้จาก deployment
+1. Commit และ Push ไฟล์ขึ้น GitHub
+2. เปิดหน้า repository บน GitHub
+3. ไปที่ `Settings` > `Pages`
+4. ที่ `Build and deployment` เลือก `Deploy from a branch`
+5. เลือก branch `main` และ folder `/root`
+6. กด `Save`
+7. รอ GitHub สร้างเว็บ แล้วเปิด URL ที่ GitHub Pages แสดงให้
 
-## Sheets ที่ระบบสร้าง
+## ฐานข้อมูล
+
+เวอร์ชัน GitHub Pages ใช้ `localStorage` ของเบราว์เซอร์เป็นฐานข้อมูล เพราะ GitHub Pages ไม่มี backend และเขียน Google Sheets โดยตรงไม่ได้
+
+ตารางข้อมูลในแอป:
 
 - `User_Logs`
 - `Health_Metrics`
 - `Doctor_Consultations`
 - `Appointments`
 
-ทุกชีตมีคอลัมน์แรกเป็น `ID` ซึ่งสร้างจาก timestamp แบบ unique และใช้สำหรับแก้ไข/ลบข้อมูล
+ทุกตารางมี `ID` เป็น unique timestamp สำหรับแก้ไข/ลบข้อมูล
+
+ควรกด `Export` เพื่อสำรองข้อมูลเป็นไฟล์ JSON เป็นระยะ และใช้ `Import` เพื่อนำข้อมูลกลับเข้าแอป
