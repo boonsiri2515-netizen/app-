@@ -6,13 +6,102 @@
     <title>Health Web App</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
-      body { font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
-      .tab-button[aria-selected="true"] { background: #0f766e; color: #ffffff; }
+      :root {
+        --page: #f6faf8;
+        --panel: #ffffff;
+        --ink: #172033;
+        --muted: #64748b;
+        --line: #d7e5df;
+        --primary: #047857;
+        --primary-strong: #065f46;
+        --accent: #2563eb;
+        --accent-soft: #eff6ff;
+        --success-soft: #ecfdf5;
+        --warning-soft: #fff7ed;
+        --danger: #dc2626;
+      }
+      body {
+        color: var(--ink);
+        font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        background: var(--page);
+      }
+      header {
+        border-color: var(--line) !important;
+        box-shadow: 0 12px 34px rgba(15, 23, 42, 0.05);
+      }
+      h1 { color: var(--primary-strong) !important; }
+      h2, h3 { color: var(--ink) !important; }
+      .tab-button {
+        color: #334155;
+        transition: background-color 140ms ease, color 140ms ease, box-shadow 140ms ease;
+      }
+      .tab-button:hover { background: #eef7f3; }
+      .tab-button[aria-selected="true"] {
+        background: var(--primary);
+        color: #ffffff;
+        box-shadow: 0 8px 18px rgba(4, 120, 87, 0.22);
+      }
       .tab-panel { display: none; }
       .tab-panel.active { display: block; }
       .field-label { display: block; font-size: 0.8rem; font-weight: 650; color: #334155; margin-bottom: 0.3rem; }
-      .field-input { width: 100%; border: 1px solid #cbd5e1; border-radius: 0.5rem; padding: 0.65rem 0.75rem; outline: none; background: #ffffff; }
-      .field-input:focus { border-color: #0f766e; box-shadow: 0 0 0 3px rgba(15, 118, 110, 0.15); }
+      .field-input {
+        width: 100%;
+        border: 1px solid var(--line);
+        border-radius: 0.5rem;
+        padding: 0.65rem 0.75rem;
+        outline: none;
+        background: #ffffff;
+        transition: border-color 140ms ease, box-shadow 140ms ease;
+      }
+      .field-input:focus {
+        border-color: var(--accent);
+        box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.14);
+      }
+      .bg-white {
+        background-color: rgba(255, 255, 255, 0.96) !important;
+      }
+      .border-slate-200, .border-slate-300, .border-teal-100, .border-teal-200 {
+        border-color: var(--line) !important;
+      }
+      .shadow-sm {
+        box-shadow: 0 12px 28px rgba(15, 23, 42, 0.07) !important;
+      }
+      .bg-slate-50 {
+        background-color: #f8fbfa !important;
+      }
+      .bg-teal-50 {
+        background-color: var(--success-soft) !important;
+      }
+      .text-teal-800, .text-teal-900 {
+        color: var(--primary-strong) !important;
+      }
+      .bg-teal-700 {
+        background-color: var(--primary) !important;
+      }
+      .bg-teal-700:hover {
+        background-color: var(--primary-strong) !important;
+      }
+      .border-teal-700 {
+        border-color: var(--accent) !important;
+      }
+      .text-slate-500, .text-slate-600 {
+        color: var(--muted) !important;
+      }
+      .text-slate-700, .text-slate-800, .text-slate-900 {
+        color: var(--ink) !important;
+      }
+      .bg-slate-800 {
+        background-color: var(--accent) !important;
+      }
+      .bg-rose-600 {
+        background-color: var(--danger) !important;
+      }
+      .bg-amber-50 {
+        background-color: var(--warning-soft) !important;
+      }
+      .border-amber-300 {
+        border-color: #fdba74 !important;
+      }
     </style>
   </head>
   <body class="min-h-screen bg-slate-50 text-slate-900">
